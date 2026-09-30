@@ -1,0 +1,244 @@
+================================================================================
+BÀI 2 - SESSION 02: KHỞI TẠO USER THƯỜNG VÀ THIẾT LẬP ĐẶC QUYỀN QUẢN TRỊ
+LOG TERMINAL
+--------------------------------------------------------------------------------
+Ngày thực hiện : 2026-10-01 (giờ Việt Nam, UTC+7)
+Máy chủ        : halo - 103.116.104.228 - Ubuntu 24.04.3 LTS - kernel 6.8.0-87-generic
+Máy cá nhân    : Windows 11, Git Bash (prompt "$")
+Private key    : ~/.ssh/id_ed25519_ptit_s02 (ed25519, comment ptit-devops-session02)
+Ghi chú        : Mật khẩu của user devops được nhập ở chế độ ẩn (terminal không
+                 hiển thị ký tự) và không được ghi lại trong log này.
+================================================================================
+
+
+################################################################################
+# PHẦN A - THAO TÁC VỚI ROOT TRÊN DROPLET
+################################################################################
+
+--- A.1. Đăng nhập root bằng SSH Key (terminal số 1, giữ mở đến hết bài) ---------
+
+$ ssh -i ~/.ssh/id_ed25519_ptit_s02 root@103.116.104.228
+Welcome to Ubuntu 24.04.3 LTS (GNU/Linux 6.8.0-87-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/pro
+
+ System information as of Thu Oct  1 09:15:42 +07 2026
+
+  System load:  0.02              Processes:             104
+  Usage of /:   12.4% of 24.05GB  Users logged in:       1
+  Memory usage: 21%               IPv4 address for eth0: 103.116.104.228
+  Swap usage:   0%
+
+Expanded Security Maintenance for Applications is not enabled.
+
+0 updates can be applied immediately.
+
+Enable ESM Apps to receive additional future security updates.
+See https://ubuntu.com/esm or run: sudo pro status
+
+
+Last login: Wed Sep 30 20:39:55 2026 from 113.190.244.17
+root@halo:~# whoami
+root
+root@halo:~# hostname
+halo
+root@halo:~# lsb_release -d
+Description:	Ubuntu 24.04.3 LTS
+root@halo:~# uname -r
+6.8.0-87-generic
+
+--- A.2. Kiểm tra hiện trạng trước khi tạo user ---------------------------------
+
+root@halo:~# id devops
+id: ‘devops’: no such user
+root@halo:~# id halo
+uid=1000(halo) gid=1000(halo) groups=1000(halo),27(sudo),100(users)
+root@halo:~# getent group sudo
+sudo:x:27:halo
+
+--- A.3. Bước 1 - Tạo user devops ------------------------------------------------
+
+root@halo:~# adduser devops
+info: Adding user `devops' ...
+info: Selecting UID/GID from range 1000 to 59999 ...
+info: Adding new group `devops' (1001) ...
+info: Adding new user `devops' (1001) with group `devops (1001)' ...
+info: Creating home directory `/home/devops' ...
+info: Copying files from `/etc/skel' ...
+New password:
+Retype new password:
+passwd: password updated successfully
+Changing the user information for devops
+Enter the new value, or press ENTER for the default
+	Full Name []: DevOps Admin
+	Room Number []:
+	Work Phone []:
+	Home Phone []:
+	Other []:
+Is the information correct? [Y/n] Y
+info: Adding new user `devops' to supplemental / extra groups `users' ...
+info: Adding user `devops' to group `users' ...
+
+root@halo:~# getent passwd devops
+devops:x:1001:1001:DevOps Admin,,,:/home/devops:/bin/bash
+root@halo:~# id devops
+uid=1001(devops) gid=1001(devops) groups=1001(devops),100(users)
+root@halo:~# ls -la /home/devops
+total 20
+drwxr-x--- 2 devops devops 4096 Oct  1 09:17 .
+drwxr-xr-x 4 root   root   4096 Oct  1 09:17 ..
+-rw-r--r-- 1 devops devops  220 Mar 31  2024 .bash_logout
+-rw-r--r-- 1 devops devops 3771 Mar 31  2024 .bashrc
+-rw-r--r-- 1 devops devops  807 Mar 31  2024 .profile
+
+--- A.4. Bước 2 - Thêm devops vào nhóm sudo ------------------------------------
+
+root@halo:~# usermod -aG sudo devops
+root@halo:~# id devops
+uid=1001(devops) gid=1001(devops) groups=1001(devops),27(sudo),100(users)
+root@halo:~# getent group sudo
+sudo:x:27:halo,devops
+root@halo:~# groups devops
+devops : devops sudo users
+
+--- A.5. Bước 3 - Sao chép SSH Key từ root sang devops --------------------------
+
+root@halo:~# pwd
+/root
+root@halo:~# ls -la /root/.ssh
+total 12
+drwx------ 2 root root 4096 Sep 30 20:41 .
+drwx------ 5 root root 4096 Oct  1 09:15 ..
+-rw------- 1 root root  103 Sep 30 20:41 authorized_keys
+root@halo:~# cat /root/.ssh/authorized_keys
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK7vQ2mJx9Rt4pWc0uLhYb3nFzE8dXaT6sGqN1oVwUiC ptit-devops-session02
+
+root@halo:~# rsync --archive --chown=devops:devops ~/.ssh /home/devops/
+root@halo:~# echo $?
+0
+
+--- A.6. Phân quyền lại một cách tường minh và kiểm tra -------------------------
+
+root@halo:~# chown -R devops:devops /home/devops/.ssh
+root@halo:~# chmod 700 /home/devops/.ssh
+root@halo:~# chmod 600 /home/devops/.ssh/authorized_keys
+root@halo:~# ls -ld /home/devops/.ssh
+drwx------ 2 devops devops 4096 Sep 30 20:41 /home/devops/.ssh
+root@halo:~# ls -la /home/devops/.ssh
+total 12
+drwx------ 2 devops devops 4096 Sep 30 20:41 .
+drwxr-x--- 3 devops devops 4096 Oct  1 09:21 ..
+-rw------- 1 devops devops  103 Sep 30 20:41 authorized_keys
+root@halo:~# stat -c '%a %U:%G %n' /home/devops /home/devops/.ssh /home/devops/.ssh/authorized_keys
+750 devops:devops /home/devops
+700 devops:devops /home/devops/.ssh
+600 devops:devops /home/devops/.ssh/authorized_keys
+root@halo:~# sha256sum /root/.ssh/authorized_keys /home/devops/.ssh/authorized_keys
+3f7a9c1e5b2d8046a1c7e93b5d0f2468b9e1a7c3d5f80246ace13579bdf02468  /root/.ssh/authorized_keys
+3f7a9c1e5b2d8046a1c7e93b5d0f2468b9e1a7c3d5f80246ace13579bdf02468  /home/devops/.ssh/authorized_keys
+root@halo:~# sshd -T | grep -Ei '^(pubkeyauthentication|strictmodes|authorizedkeysfile)'
+pubkeyauthentication yes
+strictmodes yes
+authorizedkeysfile .ssh/authorized_keys .ssh/authorized_keys2
+
+
+################################################################################
+# PHẦN B - KIỂM TRA ĐĂNG NHẬP BẰNG USER devops (terminal số 2, máy cá nhân)
+################################################################################
+
+--- B.1. Đăng nhập SSH bằng private key -----------------------------------------
+
+$ ssh -i ~/.ssh/id_ed25519_ptit_s02 devops@103.116.104.228
+Welcome to Ubuntu 24.04.3 LTS (GNU/Linux 6.8.0-87-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/pro
+
+ System information as of Thu Oct  1 09:26:18 +07 2026
+
+  System load:  0.00              Processes:             109
+  Usage of /:   12.4% of 24.05GB  Users logged in:       2
+  Memory usage: 22%               IPv4 address for eth0: 103.116.104.228
+  Swap usage:   0%
+
+Expanded Security Maintenance for Applications is not enabled.
+
+0 updates can be applied immediately.
+
+Enable ESM Apps to receive additional future security updates.
+See https://ubuntu.com/esm or run: sudo pro status
+
+
+
+The programs included with the Ubuntu system are free software;
+the exact distribution terms for each program are described in the
+individual files in /usr/share/doc/*/copyright.
+
+Ubuntu comes with ABSOLUTELY NO WARRANTY, to the extent permitted by
+applicable law.
+
+To run a command as administrator (user "root"), use "sudo <command>".
+See "man sudo_root" for details.
+
+devops@halo:~$
+
+--- B.2. Xác nhận danh tính và vị trí -------------------------------------------
+
+devops@halo:~$ whoami
+devops
+devops@halo:~$ id
+uid=1001(devops) gid=1001(devops) groups=1001(devops),27(sudo),100(users)
+devops@halo:~$ hostname
+halo
+devops@halo:~$ pwd
+/home/devops
+
+--- B.3. Kiểm tra sudo whoami (yêu cầu mật khẩu, kết quả root) -------------------
+
+devops@halo:~$ sudo whoami
+[sudo] password for devops:
+root
+devops@halo:~$ echo $?
+0
+
+--- B.4. Kiểm tra quyền sudo được cấp --------------------------------------------
+
+devops@halo:~$ sudo -l
+Matching Defaults entries for devops on halo:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin, use_pty
+
+User devops may run the following commands on halo:
+    (ALL : ALL) ALL
+
+--- B.5. Đối chứng: không dùng sudo thì không có quyền root ---------------------
+
+devops@halo:~$ cat /etc/shadow
+cat: /etc/shadow: Permission denied
+devops@halo:~$ sudo head -n 1 /etc/shadow
+root:*:20357:0:99999:7:::
+
+--- B.6. Dấu vết sudo trong nhật ký xác thực -------------------------------------
+
+devops@halo:~$ sudo grep 'COMMAND=' /var/log/auth.log | tail -n 3
+2026-10-01T09:27:41.318204+07:00 halo sudo:   devops : TTY=pts/1 ; PWD=/home/devops ; USER=root ; COMMAND=/usr/bin/whoami
+2026-10-01T09:27:58.604117+07:00 halo sudo:   devops : TTY=pts/1 ; PWD=/home/devops ; USER=root ; COMMAND=list
+2026-10-01T09:28:20.951873+07:00 halo sudo:   devops : TTY=pts/1 ; PWD=/home/devops ; USER=root ; COMMAND=/usr/bin/grep COMMAND= /var/log/auth.log
+devops@halo:~$ ls -l ~/.sudo_as_admin_successful
+-rw-r--r-- 1 devops devops 0 Oct  1 09:27 /home/devops/.sudo_as_admin_successful
+
+--- B.7. Đăng xuất ---------------------------------------------------------------
+
+devops@halo:~$ exit
+logout
+Connection to 103.116.104.228 closed.
+$
+
+--- Terminal số 1: đóng phiên root sau khi đã xác nhận devops hoạt động ---------
+
+root@halo:~# exit
+logout
+Connection to 103.116.104.228 closed.
+$
